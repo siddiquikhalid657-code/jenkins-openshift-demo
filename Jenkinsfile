@@ -22,13 +22,22 @@ pipeline {
 
         stage('OpenShift Login') {
             steps {
-                sh '''
-                    oc login https://172.16.250.1:6443 \
-                    --token="$OPENSHIFT_TOKEN" \
-                    --insecure-skip-tls-verify=true
+                withCredentials([
+                    string(
+                        credentialsId: 'openshift-token',
+                        variable: 'OPENSHIFT_TOKEN'
+                    )
+                ]) {
+                    sh '''
+                        set +x
 
-                    oc project jenkins-demo
-                '''
+                        oc login https://172.16.250.1:6443 \
+                        --token="$OPENSHIFT_TOKEN" \
+                        --insecure-skip-tls-verify=true
+
+                        oc project jenkins-demo
+                    '''
+                }
             }
         }
 
@@ -44,9 +53,17 @@ pipeline {
             steps {
                 sh '''
                     echo "Checking deployment..."
+
+                    echo "Deployment:"
                     oc get deployment nginx-demo
+
+                    echo "Pods:"
                     oc get pods
+
+                    echo "Service:"
                     oc get service nginx-demo
+
+                    echo "Route:"
                     oc get route nginx-demo
                 '''
             }
@@ -62,6 +79,7 @@ pipeline {
     }
 
     post {
+
         success {
             echo 'Application deployed successfully!'
         }
