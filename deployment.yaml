@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-demo
+  namespace: jenkins-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: nginx-demo
+  template:
+    metadata:
+      labels:
+        app: nginx-demo
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:latest
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: html
+              mountPath: /usr/share/nginx/html
+      volumes:
+        - name: html
+          configMap:
+            name: nginx-html
+
+---
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-html
+  namespace: jenkins-demo
+data:
+  index.html: |
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Jenkins OpenShift Demo</title>
+    </head>
+    <body>
+        <h1>Hello from Jenkins!</h1>
+        <h2>Application deployed successfully to OpenShift</h2>
+        <p>This application was deployed using GitHub → Jenkins → OpenShift.</p>
+    </body>
+    </html>
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-demo
+  namespace: jenkins-demo
+spec:
+  selector:
+    app: nginx-demo
+  ports:
+    - port: 80
+      targetPort: 80
+
+---
+
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: nginx-demo
+  namespace: jenkins-demo
+spec:
+  to:
+    kind: Service
+    name: nginx-demo
+  port:
+    targetPort: 80
