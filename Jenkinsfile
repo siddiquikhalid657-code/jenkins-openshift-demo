@@ -1,22 +1,17 @@
-pipeline {
 
+pipeline {
     agent any
 
-    stages {
+    environment {
+        OCP_SERVER = 'https://api.crc.testing:6443'
+        OCP_PROJECT = 'jenkins-demo'
+    }
 
+    stages {
         stage('Checkout') {
             steps {
-                echo 'Checking out source code from GitHub'
-                checkout scm
-            }
-        }
-
-        stage('Verify Files') {
-            steps {
-                sh '''
-                    echo "Files in workspace:"
-                    ls -la
-                '''
+                git branch: 'main',
+                    url: 'https://github.com/siddiquikhalid657-code/jenkins-openshift-demo.git'
             }
         }
 
@@ -25,67 +20,53 @@ pipeline {
                 withCredentials([
                     string(
                         credentialsId: 'openshift-token',
-                        variable: 'OPENSHIFT_TOKEN'
+                        variable: 'OCP_TOKEN'
                     )
                 ]) {
                     sh '''
                         set +x
-
-                        oc login https://172.16.250.1:6443 \
-                        --token="$OPENSHIFT_TOKEN" \
-                        --insecure-skip-tls-verify=true
-
-                        oc project jenkins-demo
+                        oc login "$OCP_SERVER" \
+                          --token="$OCP_TOKEN" \
+                          --insecure-skip-tls-verify=true
                     '''
                 }
             }
         }
 
-        stage('Deploy to OpenShift') {
+        stage('Deploy Application') {
             steps {
                 sh '''
+                    oc project "$OCP_PROJECT"
+
+                    oc create configmap nginx-demo-html \
+                      --from-file=index.html \
+                      --dry-run=client -o yaml |
+                      oc apply -f -
+
                     oc apply -f deployment.yaml
+
+                    oc rollout status deployment/nginx-demo \
+                      -n "$OCP_PROJECT" --timeout=180s
                 '''
             }
         }
 
-        stage('Check Deployment') {
+        stage('Verify') {
             steps {
                 sh '''
-                    echo "Checking deployment..."
-
-                    echo "Deployment:"
-                    oc get deployment nginx-demo
-
-                    echo "Pods:"
-                    oc get pods
-
-                    echo "Service:"
-                    oc get service nginx-demo
-
-                    echo "Route:"
-                    oc get route nginx-demo
-                '''
-            }
-        }
-
-        stage('Deployment Status') {
-            steps {
-                sh '''
-                    oc rollout status deployment/nginx-demo
+                    oc get pods -n "$OCP_PROJECT"
+                    oc get svc nginx-demo -n "$OCP_PROJECT"
                 '''
             }
         }
     }
 
     post {
-
         success {
-            echo 'Application deployed successfully!'
+            echo 'SUCCESS: Application deployed to OpenShift!'
         }
-
         failure {
-            echo 'Deployment failed!'
+            echo 'FAILED: Check Console Output for the error.'
         }
     }
 }
