@@ -1,0 +1,6 @@
+
+appName: nginx-demo
+namespace: jenkins-demo
+replicas: 1
+image: nginxinc/nginx-unprivileged:stable-alpine
+containerPort: 8080
