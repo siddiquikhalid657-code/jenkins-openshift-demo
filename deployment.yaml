@@ -1,68 +1,3 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: nginx-html
-  namespace: jenkins-demo
-data:
-  index.html: |
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Jenkins OpenShift Demo</title>
-    </head>
-    <body>
-        <h1>Hello from Jenkins!</h1>
-        <h2>Application deployed successfully to OpenShift</h2>
-        <p>GitHub → Jenkins → OpenShift</p>
-    </body>
-    </html>
-
----
-
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: nginx-config
-  namespace: jenkins-demo
-data:
-  nginx.conf: |
-    worker_processes auto;
-    pid /tmp/nginx.pid;
-
-    events {
-        worker_connections 1024;
-    }
-
-    http {
-        include /etc/nginx/mime.types;
-        default_type application/octet-stream;
-
-        access_log /tmp/access.log;
-        error_log /tmp/error.log;
-
-        client_body_temp_path /tmp/client_temp;
-        proxy_temp_path /tmp/proxy_temp;
-        fastcgi_temp_path /tmp/fastcgi_temp;
-        uwsgi_temp_path /tmp/uwsgi_temp;
-        scgi_temp_path /tmp/scgi_temp;
-
-        sendfile on;
-        keepalive_timeout 65;
-
-        server {
-            listen 8080;
-
-            server_name _;
-
-            root /usr/share/nginx/html;
-
-            location / {
-                try_files $uri $uri/ =404;
-            }
-        }
-    }
-
----
 
 apiVersion: apps/v1
 kind: Deployment
@@ -70,44 +5,29 @@ metadata:
   name: nginx-demo
   namespace: jenkins-demo
 spec:
-  replicas: 2
-
+  replicas: 1
   selector:
     matchLabels:
       app: nginx-demo
-
   template:
     metadata:
       labels:
         app: nginx-demo
-
     spec:
       containers:
         - name: nginx
-          image: nginx:latest
-
+          image: nginxinc/nginx-unprivileged:stable-alpine
           ports:
             - containerPort: 8080
-
           volumeMounts:
-            - name: html
-              mountPath: /usr/share/nginx/html
-
-            - name: nginx-config
-              mountPath: /etc/nginx/nginx.conf
-              subPath: nginx.conf
-
+            - name: web-content
+              mountPath: /usr/share/nginx/html/index.html
+              subPath: index.html
       volumes:
-        - name: html
+        - name: web-content
           configMap:
-            name: nginx-html
-
-        - name: nginx-config
-          configMap:
-            name: nginx-config
-
+            name: nginx-demo-html
 ---
-
 apiVersion: v1
 kind: Service
 metadata:
@@ -116,22 +36,6 @@ metadata:
 spec:
   selector:
     app: nginx-demo
-
   ports:
-    - port: 80
+    - port: 8080
       targetPort: 8080
-
----
-
-apiVersion: route.openshift.io/v1
-kind: Route
-metadata:
-  name: nginx-demo
-  namespace: jenkins-demo
-spec:
-  to:
-    kind: Service
-    name: nginx-demo
-
-  port:
-    targetPort: 80
